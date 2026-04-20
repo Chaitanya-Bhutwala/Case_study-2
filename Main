@@ -1,0 +1,69 @@
+clc; 
+clear all;
+ 
+%% Grid Setup
+Lx = 1;         % length in x 
+Ly = 1;         % length in y 
+nx = 20;        % grid points in x
+ny = 20;        % grid points in y
+dx = Lx/(nx-1);
+dy = Ly/(ny-1);
+ 
+alpha = 1e-4;   % thermal diffusivity (m^2/s)
+dt    = 0.1;    % time step (s)
+tmax  = 50;     % total time (s)
+nt    = tmax/dt;
+ 
+%% Stability Check (must be <= 0.25 for 2D explicit based on CFL condition)
+r = alpha * dt * (1/dx^2 + 1/dy^2);
+fprintf('Stability number r = %.4f  (must be < 0.25)\n', r);
+if r >= 0.25
+    error('Unstable');
+end
+ 
+%% Initial Condition 
+T = zeros(nx, ny);
+cx = round(nx/2);
+cy = round(ny/2);
+T(cx, cy) = 100;   % 100 C at center
+ 
+%% Boundary Conditions 
+T(1,:) = 0;  T(end,:) = 0;
+T(:,1) = 0;  T(:,end) = 0;
+ 
+save_times = [10, 20, 35, 50];
+T_save     = zeros(nx, ny, 4);
+save_idx   = 1;
+ 
+for n = 1:nt
+    T_new = T;
+    for i = 2:nx-1
+        for j = 2:ny-1
+            T_new(i,j) = T(i,j) + alpha*dt * ((T(i+1,j) - 2*T(i,j) + T(i-1,j)) / dx^2 + (T(i,j+1) - 2*T(i,j) + T(i,j-1)) / dy^2 );
+        end
+    end
+    T = T_new;
+ 
+    t_now = n * dt;
+    if save_idx <= 4 && abs(t_now - save_times(save_idx)) < dt/2
+        T_save(:,:,save_idx) = T;
+        save_idx = save_idx + 1;
+    end
+end
+ 
+figure('Name','2D Transient Heat Transfer');
+for k = 1:4
+    subplot(2,2,k);
+    imagesc(T_save(:,:,k));
+    colorbar; colormap hot;
+    title(sprintf('t = %d s', save_times(k)));
+    xlabel('x'); ylabel('y');
+    axis equal tight;
+end
+sgtitle('Heat Propagation from Center to Edges');
+ 
+%% Save for ML
+x = linspace(0, Lx, nx);
+y = linspace(0, Ly, ny);
+save('heat_data.mat', 'T_save', 'x', 'y', 'save_times');
+fprintf('Saved heat_data.mat\n');
